@@ -11,7 +11,7 @@ from telethon.errors import FloodWaitError, UserPrivacyRestrictedError, UserIsBl
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
-ADMIN_ID = int(os.environ["ADMIN_ID"])
+ADMIN_IDS = [int(x) for x in os.environ["ADMIN_IDS"].split(",")]
 SESSION = os.path.splitext(os.path.basename(__file__))[0]
 
 bot = Bot(token=BOT_TOKEN)
@@ -27,7 +27,7 @@ class S(StatesGroup):
 
 @dp.message(F.text == "/start")
 async def cmd_start(m: Message, state: FSMContext):
-    if m.from_user.id != ADMIN_ID:
+    if m.from_user.id not in ADMIN_IDS:
         return
     await state.clear()
     await m.answer("юзеры (через пробел):", reply_markup=ReplyKeyboardRemove())
