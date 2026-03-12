@@ -87,7 +87,7 @@ async def step_blast(m: Message, state: FSMContext):
         if i % 5 == 0:
             await s.edit_text(f"[{i}/{len(users)}] ок {ok} | скип {skip} | err {fail}")
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(20)
 
     await s.edit_text(f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}")
 
