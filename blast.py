@@ -6,9 +6,8 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKey
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from telethon.sync import TelegramClient
+from telethon import TelegramClient
 from telethon.errors import FloodWaitError, UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, PeerFloodError, UsernameNotOccupiedError, UsernameInvalidError
-import time
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_ID = int(os.environ["API_ID"])
@@ -34,36 +33,45 @@ def yn():
     )
 
 
-def do_blast(users, text, chat_id, message_id):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    with TelegramClient(SESSION, API_ID, API_HASH) as tg:
-        ok = skip = fail = 0
-        for i, u in enumerate(users, 1):
+async def blast_async(users, text, chat_id):
+    tg = TelegramClient(SESSION, API_ID, API_HASH)
+    await tg.connect()
+
+    ok = skip = fail = 0
+    for u in users:
+        try:
+            await tg.send_message(u, text)
+            ok += 1
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds + 3)
             try:
-                tg.send_message(u, text)
+                await tg.send_message(u, text)
                 ok += 1
-            except FloodWaitError as e:
-                time.sleep(e.seconds + 3)
-                try:
-                    tg.send_message(u, text)
-                    ok += 1
-                except:
-                    fail += 1
-            except (UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, UsernameNotOccupiedError, UsernameInvalidError):
-                skip += 1
-            except PeerFloodError:
-                fail += 1
-                time.sleep(60)
             except:
                 fail += 1
+        except (UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, UsernameNotOccupiedError, UsernameInvalidError):
+            skip += 1
+        except PeerFloodError:
+            fail += 1
+            await asyncio.sleep(60)
+        except:
+            fail += 1
 
-            time.sleep(15)
+        await asyncio.sleep(15)
 
-        asyncio.run_coroutine_threadsafe(
-            bot.send_message(chat_id, f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}"),
-            main_loop
-        )
+    await tg.disconnect()
+
+    asyncio.run_coroutine_threadsafe(
+        bot.send_message(chat_id, f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}"),
+        main_loop
+    )
+
+
+def blast_thread(users, text, chat_id):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(blast_async(users, text, chat_id))
+    loop.close()
 
 
 @dp.message(F.text == "/start")
@@ -101,7 +109,7 @@ async def step_blast(m: Message, state: FSMContext):
     text = d["text"]
     await state.clear()
     await m.answer("пошло...", reply_markup=ReplyKeyboardRemove())
-    t = threading.Thread(target=do_blast, args=(users, text, m.chat.id, m.message_id), daemon=True)
+    t = threading.Thread(target=blast_thread, args=(users, text, m.chat.id), daemon=True)
     t.start()
 
 
