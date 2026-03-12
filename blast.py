@@ -1,6 +1,7 @@
 import asyncio
 import os
 import threading
+import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
@@ -8,6 +9,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, PeerFloodError, UsernameNotOccupiedError, UsernameInvalidError
+
+logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_ID = int(os.environ["API_ID"])
@@ -34,32 +37,40 @@ def yn():
 
 
 async def blast_async(users, text, chat_id):
+    logging.info(f"blast start, {len(users)} users")
     tg = TelegramClient(SESSION, API_ID, API_HASH)
     await tg.connect()
+    logging.info("telethon connected")
 
     ok = skip = fail = 0
     for u in users:
         try:
             await tg.send_message(u, text)
             ok += 1
+            logging.info(f"ok -> {u}")
         except FloodWaitError as e:
+            logging.info(f"flood {e.seconds}s -> {u}")
             await asyncio.sleep(e.seconds + 3)
             try:
                 await tg.send_message(u, text)
                 ok += 1
             except:
                 fail += 1
-        except (UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, UsernameNotOccupiedError, UsernameInvalidError):
+        except (UserPrivacyRestrictedError, UserIsBlockedError, InputUserDeactivatedError, UsernameNotOccupiedError, UsernameInvalidError) as e:
             skip += 1
+            logging.info(f"skip {type(e).__name__} -> {u}")
         except PeerFloodError:
             fail += 1
+            logging.info(f"peerflo -> {u}")
             await asyncio.sleep(60)
-        except:
+        except Exception as e:
             fail += 1
+            logging.info(f"err {e} -> {u}")
 
         await asyncio.sleep(15)
 
     await tg.disconnect()
+    logging.info(f"done ok:{ok} skip:{skip} fail:{fail}")
 
     asyncio.run_coroutine_threadsafe(
         bot.send_message(chat_id, f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}"),
@@ -70,8 +81,12 @@ async def blast_async(users, text, chat_id):
 def blast_thread(users, text, chat_id):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(blast_async(users, text, chat_id))
-    loop.close()
+    try:
+        loop.run_until_complete(blast_async(users, text, chat_id))
+    except Exception as e:
+        logging.error(f"blast_thread error: {e}")
+    finally:
+        loop.close()
 
 
 @dp.message(F.text == "/start")
