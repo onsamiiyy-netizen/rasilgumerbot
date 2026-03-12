@@ -35,6 +35,8 @@ def yn():
 
 
 def do_blast(users, text, chat_id, message_id):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     with TelegramClient(SESSION, API_ID, API_HASH) as tg:
         ok = skip = fail = 0
         for i, u in enumerate(users, 1):
@@ -56,7 +58,7 @@ def do_blast(users, text, chat_id, message_id):
             except:
                 fail += 1
 
-            time.sleep(5)
+            time.sleep(15)
 
         asyncio.run_coroutine_threadsafe(
             bot.send_message(chat_id, f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}"),
