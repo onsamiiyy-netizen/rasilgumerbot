@@ -18,6 +18,7 @@ SESSION = os.path.splitext(os.path.basename(__file__))[0]
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+main_loop = None
 
 
 class S(StatesGroup):
@@ -55,13 +56,12 @@ def do_blast(users, text, chat_id, message_id):
             except:
                 fail += 1
 
-            time.sleep(15)
-                    
+            time.sleep(5)
 
-        asyncio.run(bot.edit_message_text(
-            f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}",
-            chat_id, message_id
-        ))
+        asyncio.run_coroutine_threadsafe(
+            bot.send_message(chat_id, f"готово\n\nок: {ok}\nскип: {skip}\nerr: {fail}"),
+            main_loop
+        )
 
 
 @dp.message(F.text == "/start")
@@ -98,9 +98,8 @@ async def step_blast(m: Message, state: FSMContext):
     users = d["users"]
     text = d["text"]
     await state.clear()
-
-    s = await m.answer("пошло...", reply_markup=ReplyKeyboardRemove())
-    t = threading.Thread(target=do_blast, args=(users, text, m.chat.id, s.message_id), daemon=True)
+    await m.answer("пошло...", reply_markup=ReplyKeyboardRemove())
+    t = threading.Thread(target=do_blast, args=(users, text, m.chat.id, m.message_id), daemon=True)
     t.start()
 
 
@@ -111,6 +110,8 @@ async def step_cancel(m: Message, state: FSMContext):
 
 
 async def main():
+    global main_loop
+    main_loop = asyncio.get_event_loop()
     await dp.start_polling(bot)
 
 asyncio.run(main())
